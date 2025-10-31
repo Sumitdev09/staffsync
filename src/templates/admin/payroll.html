@@ -1,0 +1,747 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll Management - StaffSync{% endblock %}
+
+{% block content %}
+<!-- Mobile Menu Toggle -->
+<button class="mobile-menu-toggle" onclick="toggleSidebar()" aria-label="Toggle Menu">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3><i class="fas fa-users"></i> StaffSync</h3>
+        <p>Admin Panel</p>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('admin_dashboard') }}">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        <a href="{{ url_for('admin_employees') }}">
+            <i class="fas fa-users"></i> Employees
+        </a>
+        <a href="{{ url_for('admin_attendance') }}">
+            <i class="fas fa-clock"></i> Attendance
+        </a>
+        <a href="{{ url_for('admin_payroll') }}" class="active">
+            <i class="fas fa-money-bill-wave"></i> Payroll
+        </a>
+        <a href="{{ url_for('admin_departments') }}">
+            <i class="fas fa-building"></i> Departments
+        </a>
+        <a href="{{ url_for('admin_settings') }}">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+        <hr>
+        <a href="{{ url_for('logout') }}">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </nav>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+    <!-- Top Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Payroll Management</h1>
+            <p class="text-muted">Process and manage employee salaries</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-success" onclick="showGeneratePayrollModal()">
+                <i class="fas fa-plus-circle"></i> Generate Payroll
+            </button>
+            <button class="btn btn-primary" onclick="exportPayrollReport()">
+                <i class="fas fa-download"></i> Export Report
+            </button>
+        </div>
+    </div>
+    
+    <!-- Payroll Summary -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+            <div class="stat-number">
+                ${{ "{:,.2f}".format(payroll_records|sum(attribute='gross_pay') or 0) }}
+            </div>
+            <div class="stat-label">Total Gross Pay</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-hand-holding-usd"></i>
+            </div>
+            <div class="stat-number">
+                ${{ "{:,.2f}".format(payroll_records|sum(attribute='net_pay') or 0) }}
+            </div>
+            <div class="stat-label">Total Net Pay</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <div class="stat-number">{{ payroll_records|length }}</div>
+            <div class="stat-label">Payroll Records</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-number">
+                {{ payroll_records|selectattr('status', 'equalto', 'pending')|list|length }}
+            </div>
+            <div class="stat-label">Pending Payments</div>
+        </div>
+    </div>
+    
+    <!-- Payroll Records Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="card-title">Payroll Records</h3>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control" placeholder="Search employees..." 
+                           onkeyup="filterTable(this, 'payrollTable')" style="width: 250px;">
+                    <select class="form-select" onchange="filterByStatus(this.value)" style="width: 150px;">
+                        <option value="">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="processed">Processed</option>
+                        <option value="paid">Paid</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="table-container payroll-table">
+            <table class="table data-table" id="payrollTable">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Employee ID</th>
+                        <th>Pay Period</th>
+                        <th>Basic Salary</th>
+                        <th>Allowances</th>
+                        <th>Deductions</th>
+                        <th>Gross Pay</th>
+                        <th>Net Pay</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payroll in payroll_records %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="employee-avatar">
+                                    {{ payroll.first_name[0] }}{{ payroll.last_name[0] }}
+                                </div>
+                                <div class="ml-3">
+                                    <div class="font-weight-bold" style="color: var(--text-dark);">{{ payroll.first_name }} {{ payroll.last_name }}</div>
+                                    <div class="small" style="color: var(--text-medium); font-weight: 500;">{{ payroll.position or 'N/A' }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><strong>{{ payroll.employee_id }}</strong></td>
+                        <td>
+                            <div class="text-sm" style="color: var(--text-medium); font-weight: 500;">
+                                {{ payroll.pay_period_start if payroll.pay_period_start else 'N/A' }}<br>
+                                {{ payroll.pay_period_end if payroll.pay_period_end else 'N/A' }}
+                            </div>
+                        </td>
+                        <td class="text-right">
+                            <strong>${{ "{:,.2f}".format(payroll.basic_salary or 0) }}</strong>
+                        </td>
+                        <td class="text-right text-success">
+                            +${{ "{:,.2f}".format(payroll.allowances or 0) }}
+                        </td>
+                        <td class="text-right text-danger">
+                            -${{ "{:,.2f}".format(payroll.deductions or 0) }}
+                        </td>
+                        <td class="text-right">
+                            <strong>${{ "{:,.2f}".format(payroll.gross_pay or 0) }}</strong>
+                        </td>
+                        <td class="text-right">
+                            <strong class="text-primary">${{ "{:,.2f}".format(payroll.net_pay or 0) }}</strong>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ 'warning' if payroll.status == 'draft' else 'info' if payroll.status == 'processed' else 'success' }}">
+                                {{ payroll.status|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-primary" 
+                                        onclick="viewPayroll({{ payroll.id }})"
+                                        title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if payroll.status == 'draft' %}
+                                <button class="btn btn-sm btn-success" 
+                                        onclick="processPayroll({{ payroll.id }})"
+                                        title="Process">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                {% endif %}
+                                {% if payroll.status == 'processed' %}
+                                <button class="btn btn-sm btn-info" 
+                                        onclick="markAsPaid({{ payroll.id }})"
+                                        title="Mark as Paid">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-secondary" 
+                                        onclick="downloadPayslip({{ payroll.id }})"
+                                        title="Download Payslip">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4">
+                            <i class="fas fa-money-bill-wave fa-3x mb-3" style="color: var(--text-light);"></i>
+                            <div style="color: var(--text-medium); font-weight: 500; font-size: 1.1rem;">No payroll records found</div>
+                            <button class="btn btn-primary mt-2" onclick="showGeneratePayrollModal()">
+                                Generate First Payroll
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Monthly Payroll Chart -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3 class="card-title">Monthly Payroll Trends</h3>
+        </div>
+        <div class="card-body">
+            <canvas id="monthlyPayrollChart" width="400" height="150"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Payroll Modal -->
+<div id="generatePayrollModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Generate Payroll</h3>
+            <button class="btn-close" onclick="closeModal('generatePayrollModal')">&times;</button>
+        </div>
+        <form id="generatePayrollForm">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Pay Period Start Date *</label>
+                    <input type="date" id="payPeriodStart" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Pay Period End Date *</label>
+                    <input type="date" id="payPeriodEnd" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Include Employees</label>
+                    <select id="employeeSelection" class="form-select">
+                        <option value="all">All Active Employees</option>
+                        <option value="department">By Department</option>
+                        <option value="individual">Individual Employees</option>
+                    </select>
+                </div>
+                <div class="form-group" id="departmentSelection" style="display: none;">
+                    <label class="form-label">Select Department</label>
+                    <select class="form-select">
+                        <option value="">Choose Department</option>
+                        <option value="hr">Human Resources</option>
+                        <option value="it">Information Technology</option>
+                        <option value="finance">Finance</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="operations">Operations</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Additional Settings</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="includeOvertime" checked>
+                        <label class="form-check-label" for="includeOvertime">
+                            Include Overtime Calculations
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="includeTax" checked>
+                        <label class="form-check-label" for="includeTax">
+                            Apply Tax Deductions
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('generatePayrollModal')">Cancel</button>
+                <button type="submit" class="btn btn-success">Generate Payroll</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Payroll Details Modal -->
+<div id="payrollDetailsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Payroll Details</h3>
+            <button class="btn-close" onclick="closeModal('payrollDetailsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="payroll-summary">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Employee Information</h4>
+                        <div class="info-item">
+                            <label>Name:</label>
+                            <span id="detailEmployeeName">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Employee ID:</label>
+                            <span id="detailEmployeeId">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Position:</label>
+                            <span id="detailPosition">-</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>Pay Period</h4>
+                        <div class="info-item">
+                            <label>Start Date:</label>
+                            <span id="detailStartDate">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>End Date:</label>
+                            <span id="detailEndDate">-</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Status:</label>
+                            <span id="detailStatus">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="payroll-breakdown">
+                    <h4 style="color: var(--text-dark); margin-bottom: 1rem;">Salary Breakdown</h4>
+                    <table class="table breakdown-table">
+                        <tr>
+                            <td style="color: var(--text-medium); font-weight: 500;">Basic Salary</td>
+                            <td class="text-right" id="detailBasicSalary" style="color: var(--text-dark); font-weight: 600;">$0.00</td>
+                        </tr>
+                        <tr class="text-success">
+                            <td style="color: var(--success-color); font-weight: 500;">Overtime Pay</td>
+                            <td class="text-right" id="detailOvertimePay" style="color: var(--success-color); font-weight: 600;">$0.00</td>
+                        </tr>
+                        <tr class="text-success">
+                            <td style="color: var(--success-color); font-weight: 500;">Allowances</td>
+                            <td class="text-right" id="detailAllowances" style="color: var(--success-color); font-weight: 600;">$0.00</td>
+                        </tr>
+                        <tr class="text-danger">
+                            <td style="color: var(--error-color); font-weight: 500;">Tax Deduction</td>
+                            <td class="text-right" id="detailTaxDeduction" style="color: var(--error-color); font-weight: 600;">$0.00</td>
+                        </tr>
+                        <tr class="text-danger">
+                            <td style="color: var(--error-color); font-weight: 500;">Other Deductions</td>
+                            <td class="text-right" id="detailOtherDeductions" style="color: var(--error-color); font-weight: 600;">$0.00</td>
+                        </tr>
+                        <tr class="border-top" style="border-top: 2px solid var(--border-color) !important;">
+                            <td style="color: var(--text-dark); font-weight: 700;">Gross Pay</td>
+                            <td class="text-right" id="detailGrossPay" style="color: var(--text-dark); font-weight: 700;">$0.00</td>
+                        </tr>
+                        <tr class="border-top" style="border-top: 3px solid var(--primary-color) !important; background: rgba(99, 102, 241, 0.05);">
+                            <td style="color: var(--primary-color); font-weight: 800; font-size: 1.1rem;">Net Pay</td>
+                            <td class="text-right" style="color: var(--primary-color); font-weight: 800; font-size: 1.1rem;"><span id="detailNetPay">$0.00</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('payrollDetailsModal')">Close</button>
+            <button type="button" class="btn btn-primary" onclick="downloadPayslip()">Download Payslip</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.employee-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-right: 0.75rem;
+}
+
+.badge-info {
+    background: #06b6d4;
+    color: white;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: var(--bg-white);
+    margin: 5% auto;
+    padding: 0;
+    border-radius: var(--border-radius);
+    width: 80%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideIn 0.3s ease-out;
+}
+
+.payroll-summary .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background: rgba(248, 250, 252, 0.8);
+    border-radius: 6px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.info-item label {
+    font-weight: 600;
+    color: var(--text-dark);
+    flex: 0 0 auto;
+    margin-right: 1rem;
+}
+
+.info-item span {
+    color: var(--text-medium);
+    font-weight: 500;
+    text-align: right;
+    flex: 1;
+}
+
+.form-check {
+    margin-bottom: 0.5rem;
+}
+
+.form-check-input {
+    margin-right: 0.5rem;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.breakdown-table {
+    margin: 0;
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.breakdown-table td {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: middle;
+}
+
+.breakdown-table tr:last-child td {
+    border-bottom: none;
+    padding: 1.25rem 1.25rem;
+}
+
+@media (max-width: 768px) {
+    .payroll-summary .row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .info-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .info-item span {
+        text-align: left;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showGeneratePayrollModal() {
+    document.getElementById('generatePayrollModal').style.display = 'block';
+    
+    // Set default dates (current month)
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    
+    document.getElementById('payPeriodStart').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('payPeriodEnd').value = endOfMonth.toISOString().split('T')[0];
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function filterByStatus(status) {
+    const table = document.getElementById('payrollTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const statusCell = row.cells[8];
+        
+        if (status === '') {
+            row.style.display = '';
+        } else {
+            const statusText = statusCell.textContent.toLowerCase();
+            row.style.display = statusText.includes(status.toLowerCase()) ? '' : 'none';
+        }
+    }
+}
+
+function viewPayroll(payrollId) {
+    // Show payroll details modal
+    document.getElementById('payrollDetailsModal').style.display = 'block';
+    
+    // Fetch payroll data from API
+    fetch(`/api/payroll/${payrollId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showNotification('Failed to load payroll details', 'error');
+            closeModal('payrollDetailsModal');
+            return;
+        }
+        
+        document.getElementById('detailEmployeeName').textContent = `${data.first_name} ${data.last_name}`;
+        document.getElementById('detailEmployeeId').textContent = data.employee_id;
+        document.getElementById('detailPosition').textContent = data.position || 'N/A';
+        document.getElementById('detailStartDate').textContent = data.pay_period_start;
+        document.getElementById('detailEndDate').textContent = data.pay_period_end;
+        
+        const statusClass = data.status === 'draft' ? 'warning' : 
+                           data.status === 'processed' ? 'info' : 'success';
+        document.getElementById('detailStatus').innerHTML = 
+            `<span class="badge badge-${statusClass}">${data.status.charAt(0).toUpperCase() + data.status.slice(1)}</span>`;
+        
+        document.getElementById('detailBasicSalary').textContent = `$${parseFloat(data.basic_salary || 0).toFixed(2)}`;
+        document.getElementById('detailOvertimePay').textContent = `$${parseFloat(data.overtime_pay || 0).toFixed(2)}`;
+        document.getElementById('detailAllowances').textContent = `$${parseFloat(data.allowances || 0).toFixed(2)}`;
+        document.getElementById('detailTaxDeduction').textContent = `$${parseFloat(data.tax_deduction || 0).toFixed(2)}`;
+        document.getElementById('detailOtherDeductions').textContent = `$${parseFloat(data.other_deductions || 0).toFixed(2)}`;
+        document.getElementById('detailGrossPay').textContent = `$${parseFloat(data.gross_pay || 0).toFixed(2)}`;
+        document.getElementById('detailNetPay').textContent = `$${parseFloat(data.net_pay || 0).toFixed(2)}`;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('An error occurred while loading payroll details', 'error');
+        closeModal('payrollDetailsModal');
+    });
+}
+
+function processPayroll(payrollId) {
+    if (confirm('Process this payroll record? This action cannot be undone.')) {
+        fetch(`/api/payroll/${payrollId}/process`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Payroll processed successfully!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showNotification('Failed to process payroll: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('An error occurred while processing payroll', 'error');
+        });
+    }
+}
+
+function markAsPaid(payrollId) {
+    if (confirm('Mark this payroll as paid?')) {
+        fetch(`/api/payroll/${payrollId}/mark_paid`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Payroll marked as paid!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showNotification('Failed to mark as paid: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('An error occurred while marking payroll as paid', 'error');
+        });
+    }
+}
+
+function downloadPayslip(payrollId) {
+    showNotification('Generating payslip PDF...', 'info');
+    // Simulate download
+    setTimeout(() => {
+        showNotification('Payslip downloaded successfully!', 'success');
+    }, 2000);
+}
+
+function exportPayrollReport() {
+    showNotification('Exporting payroll report...', 'info');
+    exportToCSV('payrollTable', 'payroll_report.csv');
+}
+
+// Employee selection change handler
+document.getElementById('employeeSelection').addEventListener('change', function() {
+    const departmentDiv = document.getElementById('departmentSelection');
+    if (this.value === 'department') {
+        departmentDiv.style.display = 'block';
+    } else {
+        departmentDiv.style.display = 'none';
+    }
+});
+
+// Generate payroll form submission
+document.getElementById('generatePayrollForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const startDate = document.getElementById('payPeriodStart').value;
+    const endDate = document.getElementById('payPeriodEnd').value;
+    const employeeSelection = document.getElementById('employeeSelection').value;
+    const includeOvertime = document.getElementById('includeOvertime').checked;
+    const includeTax = document.getElementById('includeTax').checked;
+    
+    if (!startDate || !endDate) {
+        showNotification('Please select both start and end dates', 'error');
+        return;
+    }
+    
+    if (new Date(startDate) >= new Date(endDate)) {
+        showNotification('End date must be after start date', 'error');
+        return;
+    }
+    
+    showNotification('Generating payroll records...', 'info');
+    
+    fetch('/api/payroll/generate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            pay_period_start: startDate,
+            pay_period_end: endDate,
+            employee_selection: employeeSelection,
+            include_overtime: includeOvertime,
+            include_tax: includeTax
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`Payroll generated successfully for ${data.payroll_created} employees!`, 'success');
+            closeModal('generatePayrollModal');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showNotification('Failed to generate payroll: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('An error occurred while generating payroll', 'error');
+    });
+});
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+// Initialize monthly payroll chart
+if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('monthlyPayrollChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            datasets: [{
+                label: 'Total Payroll',
+                data: [250000, 260000, 255000, 270000, 275000, 280000, 285000, 290000, 295000, 300000, 305000, 310000],
+                borderColor: 'rgba(102, 126, 234, 1)',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - StaffSync{% endblock %}
+
+{% block content %}
+<!-- Top Navigation -->
+<nav class="navbar">
+    <div class="container navbar-content">
+        <a href="{{ url_for('staff_dashboard') }}" class="navbar-brand">
+            <i class="fas fa-users"></i> StaffSync
+        </a>
+        <ul class="navbar-nav">
+            <li><a href="{{ url_for('staff_dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('staff_profile') }}" class="active">Profile</a></li>
+            <li><a href="{{ url_for('staff_leave') }}">Leave</a></li>
+            <li><a href="{{ url_for('logout') }}">Logout</a></li>
+        </ul>
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-muted">Welcome, {{ session.username }}!</span>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<div class="container" style="padding: 2rem 1rem;">
+    
+    <!-- Profile Header -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h1 class="card-title">
+                <i class="fas fa-user-circle"></i> My Profile
+            </h1>
+        </div>
+        <div class="card-content">
+            <div class="profile-header">
+                <div class="profile-avatar-large">
+                    {{ employee.first_name[0] }}{{ employee.last_name[0] }}
+                </div>
+                <div class="profile-info">
+                    <h2>{{ employee.first_name }} {{ employee.last_name }}</h2>
+                    <p class="text-muted">{{ employee.position }}</p>
+                    <div class="profile-badges">
+                        <span class="badge badge-success">Active Employee</span>
+                        <span class="badge badge-info">{{ employee.department }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Details -->
+    <div class="row">
+        <!-- Personal Information -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Personal Information</h3>
+                </div>
+                <div class="card-content">
+                    <form method="POST" class="form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="first_name">First Name</label>
+                                <input type="text" id="first_name" value="{{ employee.first_name }}" readonly class="form-control-readonly">
+                                <small class="form-text">Contact HR to change your name</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="last_name">Last Name</label>
+                                <input type="text" id="last_name" value="{{ employee.last_name }}" readonly class="form-control-readonly">
+                                <small class="form-text">Contact HR to change your name</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email Address</label>
+                                <input type="email" id="email" value="{{ employee.email }}" readonly class="form-control-readonly">
+                                <small class="form-text">Contact IT to change your email</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="phone">Phone Number</label>
+                                <input type="tel" id="phone" name="phone" value="{{ employee.phone or '' }}" placeholder="Enter your phone number" required>
+                                <small class="form-text">You can update your phone number</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="position">Position</label>
+                                <input type="text" id="position" value="{{ employee.position }}" readonly class="form-control-readonly">
+                                <small class="form-text">Contact HR for position changes</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="department">Department</label>
+                                <input type="text" id="department" value="{{ employee.department }}" readonly class="form-control-readonly">
+                                <small class="form-text">Contact HR for department changes</small>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Update Profile
+                            </button>
+                            <a href="{{ url_for('staff_dashboard') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Employment Details</h3>
+                </div>
+                <div class="card-content">
+                    <div class="detail-item">
+                        <label>Employee ID</label>
+                        <div class="detail-value">{{ employee.id }}</div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <label>Hire Date</label>
+                        <div class="detail-value">{{ employee.hire_date or 'Not set' }}</div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <label>Employment Status</label>
+                        <div class="detail-value">
+                            <span class="badge badge-success">Active</span>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="detail-item">
+                        <label>Need Help?</label>
+                        <div class="detail-value">
+                            <p class="text-muted mb-2">Contact HR for:</p>
+                            <ul class="help-list">
+                                <li>Name changes</li>
+                                <li>Position updates</li>
+                                <li>Department transfers</li>
+                                <li>Salary inquiries</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h3 class="card-title">Quick Actions</h3>
+                </div>
+                <div class="card-content">
+                    <div class="d-flex flex-column gap-2">
+                        <a href="{{ url_for('staff_dashboard') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-tachometer-alt"></i> View Dashboard
+                        </a>
+                        <a href="{{ url_for('staff_leave') }}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-calendar-times"></i> Request Leave
+                        </a>
+                        <button onclick="showNotification('Password change coming soon!', 'info')" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-key"></i> Change Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+.profile-avatar-large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 3rem;
+}
+
+.profile-info h2 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-dark);
+}
+
+.profile-badges {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.badge-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.badge-info {
+    background: var(--info-color);
+    color: white;
+}
+
+.form-control-readonly {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    color: #6c757d;
+}
+
+.form-text {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-top: 0.25rem;
+}
+
+.detail-item {
+    margin-bottom: 1.5rem;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 0.875rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.detail-value {
+    font-size: 1rem;
+    color: var(--text-dark);
+    font-weight: 500;
+}
+
+.help-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.help-list li {
+    padding: 0.25rem 0;
+    font-size: 0.875rem;
+    color: var(--text-light);
+}
+
+.help-list li:before {
+    content: "•";
+    color: var(--primary-color);
+    margin-right: 0.5rem;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+}
+
+.col-md-8, .col-md-4 {
+    /* Grid items */
+}
+
+@media (max-width: 768px) {
+    .row {
+        grid-template-columns: 1fr;
+    }
+    
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+.d-flex {
+    display: flex;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.mt-3 {
+    margin-top: 1rem;
+}
+
+.mb-2 {
+    margin-bottom: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    const phone = document.getElementById('phone').value.trim();
+    
+    if (phone && !/^[\d\s\-\+\(\)]+$/.test(phone)) {
+        e.preventDefault();
+        showNotification('Please enter a valid phone number', 'error');
+        return false;
+    }
+});
+</script>
+{% endblock %}

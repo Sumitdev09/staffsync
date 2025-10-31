@@ -1,0 +1,600 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Management - StaffSync{% endblock %}
+
+{% block content %}
+<!-- Mobile Menu Toggle -->
+<button class="mobile-menu-toggle" onclick="toggleSidebar()" aria-label="Toggle Menu">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3><i class="fas fa-users"></i> StaffSync</h3>
+        <p>Admin Panel</p>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('admin_dashboard') }}">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        <a href="{{ url_for('admin_employees') }}">
+            <i class="fas fa-users"></i> Employees
+        </a>
+        <a href="{{ url_for('admin_attendance') }}" class="active">
+            <i class="fas fa-clock"></i> Attendance
+        </a>
+        <a href="{{ url_for('admin_payroll') }}">
+            <i class="fas fa-money-bill-wave"></i> Payroll
+        </a>
+        <a href="{{ url_for('admin_departments') }}">
+            <i class="fas fa-building"></i> Departments
+        </a>
+        <a href="{{ url_for('admin_settings') }}">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+        <hr>
+        <a href="{{ url_for('logout') }}">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </nav>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+    <!-- Top Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Attendance Management</h1>
+            <p class="text-muted">Monitor and manage employee attendance</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <input type="date" id="dateFilter" class="form-control" 
+                   value="{{ selected_date }}" onchange="filterByDate(this.value)">
+            <button class="btn btn-primary" onclick="exportAttendanceReport()">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+    
+    <!-- Attendance Summary -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div class="stat-number">{{ attendance_data|selectattr('check_in_time')|list|length }}</div>
+            <div class="stat-label">Present Today</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-user-times"></i>
+            </div>
+            <div class="stat-number">{{ attendance_data|rejectattr('check_in_time')|list|length }}</div>
+            <div class="stat-label">Absent Today</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-user-clock"></i>
+            </div>
+            <div class="stat-number">{{ attendance_data|selectattr('status', 'equalto', 'late')|list|length }}</div>
+            <div class="stat-label">Late Arrivals</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-percentage"></i>
+            </div>
+            <div class="stat-number">
+                {% set total_employees = attendance_data|length %}
+                {% set present_employees = attendance_data|selectattr('check_in_time')|list|length %}
+                {% if total_employees > 0 %}
+                    {{ "%.0f"|format((present_employees / total_employees) * 100) }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </div>
+            <div class="stat-label">Attendance Rate</div>
+        </div>
+    </div>
+    
+    <!-- Attendance Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="card-title">Attendance for {{ selected_date }}</h3>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control" placeholder="Search employees..." 
+                           onkeyup="filterTable(this, 'attendanceTable')" style="width: 250px;">
+                    <select class="form-select" onchange="filterByStatus(this.value)" style="width: 150px;">
+                        <option value="">All Status</option>
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                        <option value="late">Late</option>
+                        <option value="half_day">Half Day</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="table-container">
+            <table class="table data-table" id="attendanceTable">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Employee ID</th>
+                        <th>Position</th>
+                        <th>Check In</th>
+                        <th>Check Out</th>
+                        <th>Total Hours</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in attendance_data %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="employee-avatar">
+                                    {{ record.first_name[0] }}{{ record.last_name[0] }}
+                                </div>
+                                <div class="ml-3">
+                                    <div class="font-weight-bold">{{ record.first_name }} {{ record.last_name }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><strong>{{ record.employee_id }}</strong></td>
+                        <td>{{ record.position or 'N/A' }}</td>
+                        <td>
+                            {% if record.check_in_time %}
+                                <span class="text-success">
+                                    <i class="fas fa-sign-in-alt"></i>
+                                    {{ record.check_in_time }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">Not marked</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.check_out_time %}
+                                <span class="text-primary">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    {{ record.check_out_time }}
+                                </span>
+                            {% elif record.check_in_time %}
+                                <span class="text-warning">Working</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.total_hours %}
+                                <strong>{{ "%.2f"|format(record.total_hours) }} hrs</strong>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.check_in_time %}
+                                {% if record.status == 'late' %}
+                                    <span class="badge badge-warning">Late</span>
+                                {% elif record.status == 'half_day' %}
+                                    <span class="badge badge-info">Half Day</span>
+                                {% else %}
+                                    <span class="badge badge-success">Present</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge badge-danger">Absent</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-primary" 
+                                        onclick="editAttendance('{{ record.employee_id }}', '{{ selected_date }}')"
+                                        title="Edit Attendance">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% if not record.check_in_time %}
+                                <button class="btn btn-sm btn-success" 
+                                        onclick="markPresent('{{ record.employee_id }}', '{{ selected_date }}')"
+                                        title="Mark Present">
+                                    <i class="fas fa-user-check"></i>
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-info" 
+                                        onclick="viewHistory('{{ record.employee_id }}')"
+                                        title="View History">
+                                    <i class="fas fa-history"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                            <div>No attendance data for selected date</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Weekly Attendance Chart -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3 class="card-title">Weekly Attendance Overview</h3>
+        </div>
+        <div class="card-body">
+            <canvas id="weeklyAttendanceChart" width="400" height="150"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Attendance Modal -->
+<div id="editAttendanceModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Attendance</h3>
+            <button class="btn-close" onclick="closeModal('editAttendanceModal')">&times;</button>
+        </div>
+        <form id="editAttendanceForm">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Employee</label>
+                    <input type="text" id="editEmployeeName" class="form-control" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input type="date" id="editDate" class="form-control" readonly>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Check In Time</label>
+                            <input type="time" id="editCheckIn" class="form-control">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Check Out Time</label>
+                            <input type="time" id="editCheckOut" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select id="editStatus" class="form-select">
+                        <option value="present">Present</option>
+                        <option value="late">Late</option>
+                        <option value="half_day">Half Day</option>
+                        <option value="absent">Absent</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea id="editNotes" class="form-control" rows="3" placeholder="Optional notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editAttendanceModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Attendance</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.employee-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-right: 0.75rem;
+}
+
+.badge-info {
+    background: #06b6d4;
+    color: white;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: var(--bg-white);
+    margin: 5% auto;
+    padding: 0;
+    border-radius: var(--border-radius);
+    width: 80%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideIn 0.3s ease-out;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterByDate(date) {
+    window.location.href = `{{ url_for('admin_attendance') }}?date=${date}`;
+}
+
+function filterByStatus(status) {
+    const table = document.getElementById('attendanceTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const statusCell = row.cells[6];
+        
+        if (status === '') {
+            row.style.display = '';
+        } else {
+            const statusText = statusCell.textContent.toLowerCase();
+            row.style.display = statusText.includes(status.toLowerCase()) ? '' : 'none';
+        }
+    }
+}
+
+function editAttendance(employeeId, date) {
+    // Show modal and populate with current data
+    document.getElementById('editAttendanceModal').style.display = 'block';
+    
+    // Find employee data from the table
+    const table = document.getElementById('attendanceTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const empIdCell = row.cells[1];
+        
+        if (empIdCell.textContent.trim() === employeeId.toString()) {
+            const nameCell = row.cells[0];
+            const employeeName = nameCell.querySelector('.font-weight-bold').textContent;
+            const checkinCell = row.cells[3];
+            const checkoutCell = row.cells[4];
+            const statusCell = row.cells[6];
+            
+            document.getElementById('editEmployeeName').value = employeeName;
+            document.getElementById('editDate').value = date;
+            
+            // Extract times if available
+            const checkinTime = checkinCell.textContent.includes(':') ? 
+                convertTo24Hour(checkinCell.textContent.match(/\d{1,2}:\d{2} [AP]M/)?.[0]) : '';
+            const checkoutTime = checkoutCell.textContent.includes(':') ? 
+                convertTo24Hour(checkoutCell.textContent.match(/\d{1,2}:\d{2} [AP]M/)?.[0]) : '';
+            
+            document.getElementById('editCheckIn').value = checkinTime;
+            document.getElementById('editCheckOut').value = checkoutTime;
+            
+            // Set status
+            const status = statusCell.textContent.toLowerCase().trim();
+            if (status.includes('late')) {
+                document.getElementById('editStatus').value = 'late';
+            } else if (status.includes('half')) {
+                document.getElementById('editStatus').value = 'half_day';
+            } else if (status.includes('present')) {
+                document.getElementById('editStatus').value = 'present';
+            } else {
+                document.getElementById('editStatus').value = 'absent';
+            }
+            
+            // Store employee ID for form submission
+            document.getElementById('editAttendanceForm').dataset.employeeId = employeeId;
+            break;
+        }
+    }
+}
+
+function convertTo24Hour(time12h) {
+    if (!time12h) return '';
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (hours === '12') {
+        hours = '00';
+    }
+    if (modifier === 'PM') {
+        hours = parseInt(hours, 10) + 12;
+    }
+    return `${hours.padStart(2, '0')}:${minutes}`;
+}
+
+function markPresent(employeeId, date) {
+    if (confirm(`Mark employee ${employeeId} as present for ${date}?`)) {
+        fetch('/api/attendance/mark_present', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                employee_id: employeeId,
+                date: date
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Attendance marked successfully!', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showNotification('Failed to mark attendance: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('An error occurred while marking attendance', 'error');
+        });
+    }
+}
+
+function viewHistory(employeeId) {
+    showNotification(`Viewing attendance history for employee ${employeeId}`, 'info');
+    // In real implementation, redirect to detailed history page
+}
+
+function exportAttendanceReport() {
+    const date = document.getElementById('dateFilter').value;
+    showNotification(`Exporting attendance report for ${date}...`, 'success');
+    
+    // Export current table data
+    exportToCSV('attendanceTable', `attendance_${date}.csv`);
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+// Form submission
+document.getElementById('editAttendanceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const employeeId = this.dataset.employeeId;
+    const date = document.getElementById('editDate').value;
+    const checkInTime = document.getElementById('editCheckIn').value;
+    const checkOutTime = document.getElementById('editCheckOut').value;
+    const status = document.getElementById('editStatus').value;
+    const notes = document.getElementById('editNotes').value;
+    
+    fetch('/api/attendance/edit', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            employee_id: employeeId,
+            date: date,
+            check_in_time: checkInTime,
+            check_out_time: checkOutTime,
+            status: status,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Attendance updated successfully!', 'success');
+            closeModal('editAttendanceModal');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showNotification('Failed to update attendance: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('An error occurred while updating attendance', 'error');
+    });
+});
+
+// Initialize weekly attendance chart
+if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('weeklyAttendanceChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+            datasets: [{
+                label: 'Present',
+                data: [45, 48, 44, 47, 46, 20, 15],
+                backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                borderColor: 'rgba(16, 185, 129, 1)',
+                borderWidth: 1
+            }, {
+                label: 'Absent',
+                data: [5, 2, 6, 3, 4, 30, 35],
+                backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                borderColor: 'rgba(239, 68, 68, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stacked: true
+                },
+                x: {
+                    stacked: true
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

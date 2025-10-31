@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+
+{% block title %}Department Management - StaffSync{% endblock %}
+
+{% block content %}
+<!-- Mobile Menu Toggle -->
+<button class="mobile-menu-toggle" onclick="toggleSidebar()" aria-label="Toggle Menu">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3><i class="fas fa-users"></i> StaffSync</h3>
+        <p>Admin Panel</p>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('admin_dashboard') }}">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        <a href="{{ url_for('admin_employees') }}">
+            <i class="fas fa-users"></i> Employees
+        </a>
+        <a href="{{ url_for('admin_attendance') }}">
+            <i class="fas fa-clock"></i> Attendance
+        </a>
+        <a href="{{ url_for('admin_payroll') }}">
+            <i class="fas fa-money-bill-wave"></i> Payroll
+        </a>
+        <a href="{{ url_for('admin_departments') }}" class="active">
+            <i class="fas fa-building"></i> Departments
+        </a>
+        <a href="{{ url_for('admin_settings') }}">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+        <hr>
+        <a href="{{ url_for('logout') }}">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </nav>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1><i class="fas fa-building"></i> Department Management</h1>
+            <p class="text-muted">Organize and manage your company departments</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-primary" onclick="openAddDepartmentModal()">
+                <i class="fas fa-plus"></i> Add Department
+            </button>
+        </div>
+    </div>
+    
+    <!-- Department Statistics -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number">{{ departments|length }}</div>
+                <div class="stat-label">Total Departments</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon bg-success">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number">{{ total_employees }}</div>
+                <div class="stat-label">Total Employees</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon bg-info">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number">
+                    {% if departments %}
+                        {{ (total_employees / departments|length)|round|int }}
+                    {% else %}
+                        0
+                    {% endif %}
+                </div>
+                <div class="stat-label">Avg Employees/Dept</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon bg-warning">
+                <i class="fas fa-user-tie"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number">{{ departments|selectattr('head')|list|length }}</div>
+                <div class="stat-label">Departments with Heads</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Departments Grid -->
+    <div class="departments-grid">
+        {% for dept in departments %}
+        <div class="department-card">
+            <div class="department-header">
+                <div class="department-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="department-menu">
+                    <button class="btn-menu" onclick="toggleDepartmentMenu({{ loop.index0 }})">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="dropdown-menu" id="menu-{{ loop.index0 }}">
+                        <a href="#" onclick="editDepartment('{{ dept.name }}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <a href="#" onclick="viewDepartmentDetails('{{ dept.name }}')">
+                            <i class="fas fa-eye"></i> View Details
+                        </a>
+                        <a href="#" onclick="confirmDeleteDepartment('{{ dept.name }}')" class="text-danger">
+                            <i class="fas fa-trash"></i> Delete
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="department-info">
+                <h3 class="department-name">{{ dept.name }}</h3>
+                <p class="department-description">{{ dept.description or 'No description available' }}</p>
+                
+                <div class="department-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-users"></i>
+                        <span>{{ dept.employee_count }} Employees</span>
+                    </div>
+                    {% if dept.head %}
+                    <div class="stat-item">
+                        <i class="fas fa-user-tie"></i>
+                        <span>Head: {{ dept.head }}</span>
+                    </div>
+                    {% endif %}
+                    {% if dept.budget %}
+                    <div class="stat-item">
+                        <i class="fas fa-dollar-sign"></i>
+                        <span>${{ "{:,.0f}".format(dept.budget) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="department-footer">
+                <div class="employee-avatars">
+                    {% for emp in dept.employees[:5] %}
+                    <div class="avatar-small" title="{{ emp.first_name }} {{ emp.last_name }}">
+                        {{ emp.first_name[0] }}{{ emp.last_name[0] }}
+                    </div>
+                    {% endfor %}
+                    {% if dept.employees|length > 5 %}
+                    <div class="avatar-more">+{{ dept.employees|length - 5 }}</div>
+                    {% endif %}
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="viewDepartmentEmployees('{{ dept.name }}')">
+                    View All
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-building fa-5x text-muted mb-3"></i>
+            <h3>No Departments Found</h3>
+            <p class="text-muted mb-4">Start organizing your company by creating departments</p>
+            <button class="btn btn-primary btn-lg" onclick="openAddDepartmentModal()">
+                <i class="fas fa-plus"></i> Create First Department
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Add Department Modal -->
+<div id="addDepartmentModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add New Department</h3>
+            <button class="btn-close" onclick="closeModal('addDepartmentModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="addDepartmentForm" method="POST" action="{{ url_for('admin_departments') }}">
+                <div class="form-group">
+                    <label for="dept_name">Department Name *</label>
+                    <input type="text" id="dept_name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="dept_description">Description</label>
+                    <textarea id="dept_description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dept_head">Department Head</label>
+                        <select id="dept_head" name="head">
+                            <option value="">Select Employee</option>
+                            {% for emp in all_employees %}
+                            <option value="{{ emp.first_name }} {{ emp.last_name }}">{{ emp.first_name }} {{ emp.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dept_budget">Budget ($)</label>
+                        <input type="number" id="dept_budget" name="budget" min="0" step="0.01">
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Create Department
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addDepartmentModal')">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Department Details Modal -->
+<div id="departmentDetailsModal" class="modal">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3 id="detailsTitle">Department Details</h3>
+            <button class="btn-close" onclick="closeModal('departmentDetailsModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="departmentDetailsBody">
+            <!-- Details will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<style>
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-light);
+    margin-top: 0.25rem;
+}
+
+/* Departments Grid */
+.departments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 2rem;
+}
+
+.department-card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-left: 4px solid var(--primary-color);
+}
+
+.department-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.department-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.department-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.department-menu {
+    position: relative;
+}
+
+.btn-menu {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.btn-menu:hover {
+    background: #f8f9fa;
+    color: var(--text-dark);
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    min-width: 150px;
+    z-index: 1000;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    color: var(--text-dark);
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+
+.dropdown-menu a:hover {
+    background: #f8f9fa;
+}
+
+.dropdown-menu a.text-danger {
+    color: var(--danger-color);
+}
+
+.department-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 0 0 0.5rem 0;
+}
+
+.department-description {
+    color: var(--text-light);
+    margin: 0 0 1rem 0;
+    font-size: 0.875rem;
+}
+
+.department-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-dark);
+}
+
+.stat-item i {
+    width: 16px;
+    color: var(--primary-color);
+}
+
+.department-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.employee-avatars {
+    display: flex;
+    gap: -0.5rem;
+}
+
+.avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: -0.5rem;
+    border: 2px solid white;
+}
+
+.avatar-more {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--text-light);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: -0.5rem;
+    border: 2px solid white;
+}
+
+/* Form Styles */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0.5rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: white;
+    margin: 5% auto;
+    border-radius: var(--border-radius);
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideIn 0.3s ease-out;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .departments-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Department management functions
+function openAddDepartmentModal() {
+    document.getElementById('addDepartmentModal').style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function toggleDepartmentMenu(index) {
+    const menu = document.getElementById(`menu-${index}`);
+    // Close all other menus
+    document.querySelectorAll('.dropdown-menu').forEach(m => {
+        if (m !== menu) m.classList.remove('show');
+    });
+    menu.classList.toggle('show');
+}
+
+function editDepartment(deptName) {
+    showNotification(`Edit ${deptName} - Feature coming soon!`, 'info');
+}
+
+function viewDepartmentDetails(deptName) {
+    showNotification(`View ${deptName} details - Feature coming soon!`, 'info');
+}
+
+function viewDepartmentEmployees(deptName) {
+    showNotification(`View ${deptName} employees - Feature coming soon!`, 'info');
+}
+
+function confirmDeleteDepartment(deptName) {
+    if (confirm(`Are you sure you want to delete the ${deptName} department? This action cannot be undone.`)) {
+        showNotification(`Delete ${deptName} - Feature coming soon!`, 'info');
+    }
+}
+
+// Close dropdown menus when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.department-menu')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('show');
+        });
+    }
+});
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

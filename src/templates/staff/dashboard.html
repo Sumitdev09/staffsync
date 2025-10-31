@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Dashboard - StaffSync{% endblock %}
+
+{% block content %}
+<!-- Modern Staff Navigation -->
+<nav class="navbar">
+    <div class="container navbar-content">
+        <a href="{{ url_for('staff_dashboard') }}" class="navbar-brand">
+            <i class="fas fa-users"></i> StaffSync
+        </a>
+        <ul class="navbar-nav" id="navbarNav">
+            <li><a href="{{ url_for('staff_dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('staff_profile') }}">Profile</a></li>
+            <li><a href="{{ url_for('staff_leave') }}">Leave</a></li>
+            <li><a href="{{ url_for('logout') }}">Logout</a></li>
+        </ul>
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-dark font-weight-600">Welcome, {{ session.username }}!</span>
+            <button class="mobile-menu-toggle d-md-none" onclick="toggleStaffMobileMenu()" aria-label="Toggle Menu">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<style>
+.navbar-nav {
+    transition: var(--transition);
+}
+
+@media (max-width: 768px) {
+    .navbar-nav {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(20px);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: var(--shadow-xl);
+        border-radius: 0 0 var(--border-radius) var(--border-radius);
+        transform: translateY(-20px);
+        opacity: 0;
+        visibility: hidden;
+        transition: var(--transition);
+    }
+    
+    .navbar-nav.show {
+        transform: translateY(0);
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .navbar-nav li {
+        margin-bottom: 0.5rem;
+    }
+    
+    .navbar-nav a {
+        display: block;
+        padding: 0.75rem 1rem;
+        border-radius: var(--border-radius-sm);
+    }
+    
+    .navbar {
+        position: relative;
+    }
+}
+</style>
+
+<!-- Main Content -->
+<div class="container" style="padding: 2rem 1rem;">
+    <!-- Staff Profile Card -->
+    {% if employee %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">My Profile</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 text-center">
+                    <div class="profile-avatar">
+                        {{ employee.first_name[0] }}{{ employee.last_name[0] }}
+                    </div>
+                    <h4 class="mt-3">{{ employee.first_name }} {{ employee.last_name }}</h4>
+                    <p class="text-muted">{{ employee.position or 'Staff Member' }}</p>
+                    <span class="badge badge-{{ 'success' if employee.status == 'active' else 'warning' }}">
+                        {{ employee.status|title }}
+                    </span>
+                </div>
+                <div class="col-md-9">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-item">
+                                <label>Employee ID</label>
+                                <div class="info-value">{{ employee.employee_id }}</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Email</label>
+                                <div class="info-value">{{ employee.email }}</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Phone</label>
+                                <div class="info-value">{{ employee.phone or 'Not provided' }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-item">
+                                <label>Department</label>
+                                <div class="info-value">{{ employee.department_name or 'No Department' }}</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Hire Date</label>
+                                <div class="info-value">{{ employee.hire_date if employee.hire_date else 'N/A' }}</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Leave Balance</label>
+                                <div class="info-value text-success">{{ leave_balance }} days</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Quick Stats -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="stat-number">{{ recent_attendance|length }}</div>
+            <div class="stat-label">Days This Week</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-number" id="currentTime"></div>
+            <div class="stat-label">Current Time</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-times"></i>
+            </div>
+            <div class="stat-number">{{ leave_balance }}</div>
+            <div class="stat-label">Leave Days Left</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div class="stat-number" id="attendanceStatus">
+                <span class="text-muted">Not Marked</span>
+            </div>
+            <div class="stat-label">Today's Status</div>
+        </div>
+    </div>
+    
+    <!-- Attendance Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="card-title">Attendance</h3>
+                <div id="todayAttendance" class="text-muted">
+                    Today: <span id="todayDate"></span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body text-center">
+            <div class="attendance-actions mb-4">
+                <button id="attendanceBtn" class="btn btn-success btn-lg" onclick="markAttendance()">
+                    <i class="fas fa-fingerprint"></i>
+                    Mark Attendance
+                </button>
+                <div class="mt-3" id="attendanceStatusText">
+                    <small class="text-muted">Click to mark your check-in/check-out time</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Attendance History -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Attendance History</h3>
+        </div>
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Check In</th>
+                        <th>Check Out</th>
+                        <th>Total Hours</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attendance in recent_attendance %}
+                    <tr>
+                        <td>{{ attendance.date if attendance.date else 'N/A' }}</td>
+                        <td>
+                            {% if attendance.check_in_time %}
+                                <span class="text-success">
+                                    <i class="fas fa-sign-in-alt"></i>
+                                    {{ attendance.check_in_time }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if attendance.check_out_time %}
+                                <span class="text-primary">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    {{ attendance.check_out_time }}
+                                </span>
+                            {% else %}
+                                <span class="text-warning">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if attendance.total_hours %}
+                                {{ "%.2f"|format(attendance.total_hours) }} hrs
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if attendance.status == 'present' else 'warning' if attendance.status == 'late' else 'danger' }}">
+                                {{ attendance.status|title }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="fas fa-calendar fa-3x mb-3"></i>
+                            <div>No attendance records found</div>
+                            <small>Mark your first attendance to see history</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Floating Attendance Button (Mobile) -->
+<button class="attendance-btn d-md-none" onclick="markAttendance()" id="floatingAttendanceBtn">
+    <i class="fas fa-fingerprint"></i>
+</button>
+
+<style>
+.container {
+    max-width: 1200px;
+}
+
+.profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 2rem;
+    margin: 0 auto;
+}
+
+.info-item {
+    margin-bottom: 1rem;
+}
+
+.info-item label {
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 0.875rem;
+    display: block;
+}
+
+.info-value {
+    font-size: 1rem;
+    color: var(--text-dark);
+    font-weight: 500;
+}
+
+.attendance-actions {
+    padding: 2rem 0;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem;
+}
+
+.col-md-3 {
+    /* Grid item */
+}
+
+.col-md-9 {
+    /* Grid item */
+}
+
+.col-md-6 {
+    /* Grid item */
+}
+
+.col-md-9 .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .col-md-9 .row {
+        grid-template-columns: 1fr;
+    }
+    
+    .navbar-nav {
+        display: none;
+    }
+    
+    .attendance-btn {
+        display: block !important;
+    }
+}
+
+/* Badge styles */
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.badge-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.badge-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.badge-danger {
+    background: var(--error-color);
+    color: white;
+}
+
+/* Mobile menu toggle */
+.d-md-none {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .d-md-none {
+        display: block !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update today's date
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+});
+
+// Check today's attendance status on load
+checkTodayAttendance();
+
+function checkTodayAttendance() {
+    // This would normally fetch from API
+    // For demo, we'll simulate
+    const status = localStorage.getItem('todayAttendance');
+    if (status) {
+        updateAttendanceDisplay(JSON.parse(status));
+    }
+}
+
+function updateAttendanceDisplay(data) {
+    const statusElement = document.getElementById('attendanceStatus');
+    const button = document.getElementById('attendanceBtn');
+    const statusText = document.getElementById('attendanceStatusText');
+    
+    if (data.checkedIn && !data.checkedOut) {
+        statusElement.innerHTML = '<span class="text-success">Checked In</span>';
+        button.innerHTML = '<i class="fas fa-sign-out-alt"></i> Check Out';
+        button.className = 'btn btn-warning btn-lg';
+        statusText.innerHTML = `<small class="text-success">Checked in at ${data.checkInTime}</small>`;
+    } else if (data.checkedIn && data.checkedOut) {
+        statusElement.innerHTML = '<span class="text-primary">Completed</span>';
+        button.innerHTML = '<i class="fas fa-check-circle"></i> Completed';
+        button.className = 'btn btn-secondary btn-lg';
+        button.disabled = true;
+        statusText.innerHTML = `<small class="text-primary">Completed: ${data.checkInTime} - ${data.checkOutTime}</small>`;
+    }
+}
+
+function toggleMobileMenu() {
+    showNotification('Mobile menu coming soon!', 'info');
+}
+
+// Update current time in stat card
+function updateCurrentTime() {
+    const timeElement = document.querySelector('.stat-card .stat-number#currentTime');
+    if (timeElement) {
+        timeElement.textContent = new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+}
+
+setInterval(updateCurrentTime, 1000);
+updateCurrentTime();
+
+// Override the markAttendance function for staff-specific behavior
+window.markAttendance = async function() {
+    const button = document.getElementById('attendanceBtn');
+    const originalContent = button.innerHTML;
+    
+    // Show loading
+    button.innerHTML = '<div class="spinner"></div> Processing...';
+    button.disabled = true;
+    
+    try {
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        const currentStatus = localStorage.getItem('todayAttendance');
+        let attendanceData;
+        
+        if (!currentStatus) {
+            // First check-in
+            attendanceData = {
+                checkedIn: true,
+                checkedOut: false,
+                checkInTime: timeString
+            };
+            showNotification(`Check-in successful at ${timeString}`, 'success');
+        } else {
+            // Check-out
+            const existing = JSON.parse(currentStatus);
+            attendanceData = {
+                ...existing,
+                checkedOut: true,
+                checkOutTime: timeString
+            };
+            showNotification(`Check-out successful at ${timeString}`, 'success');
+        }
+        
+        localStorage.setItem('todayAttendance', JSON.stringify(attendanceData));
+        updateAttendanceDisplay(attendanceData);
+        
+    } catch (error) {
+        showNotification('Error marking attendance. Please try again.', 'error');
+        button.innerHTML = originalContent;
+        button.disabled = false;
+    }
+};
+</script>
+{% endblock %}
