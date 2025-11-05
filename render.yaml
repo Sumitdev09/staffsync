@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: staffsync-web
+    env: python
+    branch: main
+    repo: https://github.com/Sumitdev09/staffsync
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    plan: free
+    env:
+      FLASK_ENV: production
