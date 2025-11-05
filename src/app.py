@@ -6,9 +6,10 @@ import os
 from datetime import datetime, date
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this-in-production'
+# Use an environment variable for the secret key in production. Keep a fallback for local development.
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 
-DATABASE = 'staffsync.db'  # Database is in the same directory as app.py
+DATABASE = os.path.join(os.path.dirname(__file__), 'staffsync.db')  # Database file located next to app.py
 
 # Decorators
 def login_required(f):
@@ -1095,3 +1096,12 @@ if __name__ == '__main__':
     
     # Run the application
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+# Ensure the database exists when the module is imported (useful when running under gunicorn)
+try:
+    init_database()
+except Exception:
+    # If initialization fails during import (rare), defer to before_first_request
+    @app.before_first_request
+    def _init_db_on_first_request():
+        init_database()
